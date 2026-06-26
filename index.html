@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>東進 演習進捗ダッシュボード</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#f0f4f8;--surface:#fff;--border:#e2e8f0;--border2:#cbd5e1;
+  --blue:#2563eb;--blue-l:#eff6ff;--blue-m:#bfdbfe;
+  --teal:#0891b2;--teal-l:#ecfeff;
+  --green:#16a34a;--green-l:#f0fdf4;
+  --amber:#d97706;--amber-l:#fffbeb;--amber-m:#fde68a;
+  --red:#dc2626;--red-l:#fef2f2;--red-m:#fecaca;
+  --gray:#64748b;--gray-l:#f8fafc;
+  --text:#1e293b;--sub:#64748b;
+  --sh:0 1px 3px rgba(0,0,0,.07),0 1px 2px rgba(0,0,0,.04);
+  --sh2:0 4px 16px rgba(0,0,0,.10);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI','Noto Sans JP',sans-serif;font-size:13px;line-height:1.5}
+
+/* ===== HEADER ===== */
+.hdr{background:var(--surface);border-bottom:1px solid var(--border);height:52px;padding:0 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:300;box-shadow:var(--sh)}
+.hdr-logo{font-size:15px;font-weight:800;color:var(--blue)}
+.hdr-sep{width:1px;height:22px;background:var(--border2)}
+.hdr-title{font-size:13px;font-weight:600}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.hdr-date{font-size:11px;color:var(--sub)}
+.mode-wrap{display:flex;background:var(--bg);border:1px solid var(--border2);border-radius:8px;overflow:hidden}
+.mode-btn{padding:5px 13px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--sub);transition:all .15s;white-space:nowrap}
+.mode-btn.on-blue{background:var(--blue);color:#fff}
+.mode-btn.on-teal{background:var(--teal);color:#fff}
+
+/* ===== TAB BAR ===== */
+.tabs{background:var(--surface);border-bottom:2px solid var(--border);display:flex;padding:0 20px;overflow-x:auto;position:sticky;top:52px;z-index:200}
+.tab{padding:10px 15px;font-size:12px;font-weight:600;color:var(--sub);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:color .15s,border-color .15s;display:flex;align-items:center;gap:5px}
+.tab:hover{color:var(--text)}
+.tab.on{color:var(--blue);border-bottom-color:var(--blue)}
+.tab-n{background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;min-width:16px;text-align:center}
+.tab-n.g{background:var(--border2);color:var(--sub)}
+
+/* ===== PAGE ===== */
+.page{display:none;padding:16px 20px 40px}
+.page.on{display:block}
+
+/* ===== TOOLBAR (per page) ===== */
+.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--sub);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;box-shadow:var(--sh)}
+.btn:hover{border-color:var(--blue);color:var(--blue)}
+.btn.blue{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn.blue:hover{background:#1d4ed8}
+.btn.green{background:var(--green);color:#fff;border-color:var(--green)}
+.btn.green:hover{background:#15803d}
+.btn-sep{width:1px;height:24px;background:var(--border)}
+
+/* ===== FILTER ROW ===== */
+.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.frow input,.frow select{background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:6px 10px;border-radius:8px;font-size:11px;outline:none;box-shadow:var(--sh)}
+.frow input:focus,.frow select:focus{border-color:var(--blue)}
+
+/* ===== GRID ===== */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+@media(max-width:1100px){.g5{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:900px){.g4,.g3{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}}
+.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}
+.gap8{gap:8px}
+
+/* ===== CARD ===== */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--sh)}
+.card-title{font-size:11px;font-weight:700;color:var(--sub);letter-spacing:.05em;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+
+/* ===== KPI ===== */
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--sh);position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;width:4px;height:100%;border-radius:12px 0 0 12px}
+.kpi.c-blue::before{background:var(--blue)}.kpi.c-teal::before{background:var(--teal)}
+.kpi.c-green::before{background:var(--green)}.kpi.c-amber::before{background:var(--amber)}
+.kpi.c-red::before{background:var(--red)}
+.kpi-label{font-size:10px;font-weight:700;color:var(--sub);letter-spacing:.05em;margin-bottom:4px}
+.kpi-val{font-size:26px;font-weight:800;line-height:1.1}
+.kpi-val.blue{color:var(--blue)}.kpi-val.teal{color:var(--teal)}.kpi-val.green{color:var(--green)}
+.kpi-val.amber{color:var(--amber)}.kpi-val.red{color:var(--red)}
+.kpi-note{font-size:10px;color:var(--sub);margin-top:3px}
+.kpi-diff{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;margin-top:4px}
+.kpi-diff.behind{background:var(--amber-l);color:var(--amber)}
+.kpi-diff.ok{background:var(--green-l);color:var(--green)}
+
+/* ===== TABLE ===== */
+.tw{overflow-x:auto;border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh)}
+.tw.h400{max-height:400px;overflow-y:auto}
+.tw.h500{max-height:500px;overflow-y:auto}
+.tw.h600{max-height:600px;overflow-y:auto}
+.tw table{width:100%;border-collapse:collapse;font-size:11.5px}
+.tw th{background:var(--gray-l);color:var(--sub);font-weight:700;padding:8px 11px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;font-size:10.5px;cursor:pointer;user-select:none}
+.tw th:hover{color:var(--text)}
+.tw td{padding:7px 11px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle}
+.tw tr:last-child td{border-bottom:none}
+.tw tr:hover td{background:var(--blue-l)}
+.tw.print-table th,.tw.print-table td{font-size:11px;padding:6px 8px}
+
+/* ===== BADGE ===== */
+.b{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.b-ok{background:var(--green-l);color:var(--green);border:1px solid #bbf7d0}
+.b-ng{background:var(--red-l);color:var(--red);border:1px solid var(--red-m)}
+.b-warn{background:var(--amber-l);color:var(--amber);border:1px solid var(--amber-m)}
+.b-info{background:var(--blue-l);color:var(--blue);border:1px solid var(--blue-m)}
+.b-gray{background:var(--gray-l);color:var(--gray);border:1px solid var(--border2)}
+
+/* ===== PROGRESS BAR ===== */
+.pb{background:var(--border);border-radius:4px;height:7px;overflow:hidden;position:relative}
+.pb-fill{height:100%;border-radius:4px;transition:width .3s}
+.pb-target{position:absolute;top:0;width:2px;background:var(--amber);height:100%}
+
+/* ===== CHART ===== */
+.cw{position:relative;height:220px}.cw.h260{height:260px}.cw.h300{height:300px}.cw.h180{height:180px}
+
+/* ===== SECTION LABEL ===== */
+.slabel{font-size:10px;font-weight:800;color:var(--sub);letter-spacing:.08em;text-transform:uppercase;padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:10px}
+
+/* ===== ALERT ===== */
+.alert-sub-bar{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.asb{padding:6px 14px;border-radius:20px;border:1px solid var(--border2);background:var(--surface);color:var(--sub);font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s;box-shadow:var(--sh)}
+.asb.on-red{background:var(--red);border-color:var(--red);color:#fff}
+.asb.on-amber{background:var(--amber);border-color:var(--amber);color:#fff}
+.asb-n{background:rgba(255,255,255,.3);padding:0 5px;border-radius:10px;font-size:10px;font-weight:800}
+.al-list{display:flex;flex-direction:column;gap:5px;max-height:280px;overflow-y:auto}
+.al-head{font-size:12px;font-weight:700;color:var(--text);margin-bottom:7px;display:flex;align-items:center;gap:8px}
+.al-cnt{font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px}
+.al-cnt.red{background:var(--red);color:#fff}
+.al-cnt.amber{background:var(--amber);color:#fff}
+.al-item{border-radius:8px;padding:8px 12px;display:flex;align-items:flex-start;gap:9px;font-size:11px}
+.al-item.red{background:var(--red-l);border:1px solid var(--red-m)}
+.al-item.amber{background:var(--amber-l);border:1px solid var(--amber-m)}
+.al-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.al-dot.red{background:var(--red)}.al-dot.amber{background:var(--amber)}
+.al-name{font-weight:700;color:var(--text);min-width:80px}
+.al-reason{color:var(--sub);line-height:1.5}
+.empty-msg{color:var(--sub);font-size:11px;padding:8px 0;display:flex;align-items:center;gap:5px}
+
+/* ===== RANK ===== */
+.rank{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:10px;font-weight:800;flex-shrink:0}
+.r1{background:#fbbf24;color:#78350f}.r2{background:#94a3b8;color:#fff}.r3{background:#c2714a;color:#fff}.rn{background:var(--border);color:var(--sub)}
+
+/* ===== RATE CHART (横棒) ===== */
+.rate-chart-wrap{display:flex;flex-direction:column;gap:4px;max-height:480px;overflow-y:auto;padding-right:4px}
+.rc-row{display:flex;align-items:center;gap:8px;min-height:28px}
+.rc-name{font-size:11px;font-weight:600;min-width:90px;max-width:90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;flex-shrink:0;cursor:pointer;color:var(--blue)}
+.rc-name:hover{text-decoration:underline}
+.rc-bar-wrap{flex:1;position:relative;height:18px;background:var(--bg);border-radius:4px;overflow:visible}
+.rc-bar{height:100%;border-radius:4px;transition:width .4s;position:relative}
+.rc-target-line{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--amber);z-index:2;border-radius:1px}
+.rc-label{font-size:10px;font-weight:700;min-width:38px;text-align:right;flex-shrink:0}
+.rc-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;flex-shrink:0;min-width:42px;text-align:center}
+
+/* ===== POPUP ===== */
+.overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.3);z-index:999;align-items:center;justify-content:center}
+.overlay.on{display:flex}
+.popup{background:var(--surface);border-radius:16px;box-shadow:var(--sh2);padding:24px;width:560px;max-width:96vw;max-height:88vh;overflow-y:auto;position:relative}
+.popup-close{position:absolute;top:14px;right:14px;border:none;background:var(--bg);border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:14px;color:var(--sub);display:flex;align-items:center;justify-content:center}
+.popup-name{font-size:18px;font-weight:800;color:var(--text);margin-bottom:3px}
+.popup-meta{font-size:11px;color:var(--sub);margin-bottom:14px}
+.popup-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.popup-kpi{background:var(--gray-l);border-radius:8px;padding:10px 12px}
+.pk-label{font-size:10px;color:var(--sub);font-weight:700;margin-bottom:2px}
+.pk-val{font-size:17px;font-weight:800}
+.sep{height:1px;background:var(--border);margin:12px 0}
+
+/* ===== TREND CHART SECTION ===== */
+.trend-filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.trend-filters select{background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:6px 10px;border-radius:8px;font-size:11px;outline:none}
+
+/* ===== PRINT ===== */
+@media print{
+  .hdr,.tabs,.toolbar,.alert-sub-bar,.frow,.mode-wrap,.btn,.overlay{display:none!important}
+  .page{display:block!important;padding:0}
+  .card{box-shadow:none;break-inside:avoid}
+  .tw.h400,.tw.h500,.tw.h600{max-height:none;overflow:visible}
+  .rate-chart-wrap{max-height:none}
+}
+
+/* ===== SCROLL ===== */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <span class="hdr-logo">東進</span>
+  <div class="hdr-sep"></div>
+  <span class="hdr-title">演習進捗ダッシュボード</span>
+  <div class="hdr-right">
+    <span class="hdr-date">📅 2026/06/26更新（6/22週）</span>
+    <div class="mode-wrap">
+      <button class="mode-btn on-blue" id="btn-tek" onclick="switchMode('tekkoku')">📐 定石演習（高2）</button>
+      <button class="mode-btn" id="btn-kiso" onclick="switchMode('kiso')">📗 基礎定着（高1）</button>
+    </div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab on" onclick="switchTab('overview',this)">📊 校舎全体</div>
+  <div class="tab" onclick="switchTab('rate',this)">📈 全生徒達成率</div>
+  <div class="tab" onclick="switchTab('students',this)">👤 生徒別詳細</div>
+  <div class="tab" onclick="switchTab('trend',this)">📅 週別推移</div>
+  <div class="tab" onclick="switchTab('alerts',this)">🚨 アラート <span class="tab-n" id="tab-n-alert">0</span></div>
+  <div class="tab" onclick="switchTab('tanin',this)">👩‍🏫 担任別</div>
+  <div class="tab" onclick="switchTab('tanto',this)">📋 担当別</div>
+</div>
+
+<!-- ===== OVERVIEW ===== -->
+<div class="page on" id="page-overview">
+  <div class="toolbar">
+    <button class="btn" onclick="printPage('page-overview')">🖨 印刷</button>
+    <button class="btn green" onclick="exportCSV('overview')">⬇ Excel用CSV</button>
+  </div>
+  <div class="g5 mb12" id="kpi-row"></div>
+  <div class="g2 mb12">
+    <div class="card"><div class="card-title">達成率分布 — 数学</div><div class="cw"><canvas id="c-dist-m"></canvas></div></div>
+    <div class="card"><div class="card-title">達成率分布 — 英語</div><div class="cw"><canvas id="c-dist-e"></canvas></div></div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="card-title">🎯 数学 生徒別達成率 vs 7/31目標62%</div><div class="cw h260"><canvas id="c-tgt-m"></canvas></div></div>
+    <div class="card"><div class="card-title">🎯 英語 生徒別達成率 vs 7/31目標62%</div><div class="cw h260"><canvas id="c-tgt-e"></canvas></div></div>
+  </div>
+</div>
+
+<!-- ===== RATE (全生徒達成率ビジュアル) ===== -->
+<div class="page" id="page-rate">
+  <div class="toolbar">
+    <button class="btn" onclick="printPage('page-rate')">🖨 印刷</button>
+    <button class="btn green" onclick="exportCSV('rate')">⬇ Excel用CSV</button>
+    <div class="btn-sep"></div>
+    <label style="font-size:11px;color:var(--sub);font-weight:600">並び順:</label>
+    <select id="rate-sort" onchange="renderRate()" style="font-size:11px;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface)">
+      <option value="m_rate_d">数学達成率 ↓</option>
+      <option value="m_rate_a">数学達成率 ↑</option>
+      <option value="e_rate_d">英語達成率 ↓</option>
+      <option value="name_a">氏名 ↑</option>
+    </select>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="card-title">数学 — 全生徒達成率（目標62%ライン付き）<span id="rate-cnt-m" style="margin-left:auto;font-size:10px;color:var(--sub)"></span></div>
+      <div class="rate-chart-wrap" id="rate-chart-m"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">英語 — 全生徒達成率（目標62%ライン付き）<span id="rate-cnt-e" style="margin-left:auto;font-size:10px;color:var(--sub)"></span></div>
+      <div class="rate-chart-wrap" id="rate-chart-e"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STUDENTS ===== -->
+<div class="page" id="page-students">
+  <div class="toolbar">
+    <div class="frow">
+      <input type="text" id="s-q" placeholder="🔍 名前検索" oninput="renderStudents()" style="width:150px">
+      <select id="s-rm" onchange="renderStudents()"><option value="">数学 再評価: 全て</option><option value="済">済</option><option value="未">未</option></select>
+      <select id="s-re" onchange="renderStudents()"><option value="">英語 再評価: 全て</option><option value="済">済</option><option value="未">未</option></select>
+      <select id="s-sort" onchange="renderStudents()">
+        <option value="m_rate_d">数学達成率 ↓</option>
+        <option value="m_rate_a">数学達成率 ↑</option>
+        <option value="e_rate_d">英語達成率 ↓</option>
+        <option value="m_last_d">最終演習日 ↓</option>
+        <option value="name_a">氏名 ↑</option>
+      </select>
+    </div>
+    <div class="btn-sep"></div>
+    <button class="btn" onclick="printPage('page-students')">🖨 印刷</button>
+    <button class="btn green" onclick="exportCSV('students')">⬇ Excel用CSV</button>
+  </div>
+  <div class="tw h500">
+    <table>
+      <thead><tr>
+        <th>氏名</th><th>数学 達成率</th><th>数 達成/総数</th><th>数 演習</th><th>数 正答率</th><th>数 今週</th><th>数 最終演習日</th><th>数 再評価</th>
+        <th>英語 達成率</th><th>英 達成/総数</th><th>英 演習</th><th>英 正答率</th><th>英 今週</th><th>英 最終演習日</th><th>英 再評価</th>
+        <th>目標到達見込</th><th>担任</th><th>担当</th>
+      </tr></thead>
+      <tbody id="s-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== TREND (週別推移) ===== -->
+<div class="page" id="page-trend">
+  <div class="toolbar">
+    <div class="trend-filters">
+      <label style="font-size:11px;font-weight:600;color:var(--sub)">表示対象:</label>
+      <select id="tr-mode" onchange="renderTrend()">
+        <option value="school">校舎全体</option>
+        <option value="student">生徒別</option>
+        <option value="tanin">担任別</option>
+        <option value="tanto">担当別</option>
+      </select>
+      <select id="tr-target" onchange="renderTrend()" style="display:none"></select>
+      <select id="tr-subj" onchange="renderTrend()">
+        <option value="both">数学＋英語（合計）</option>
+        <option value="m">数学のみ</option>
+        <option value="e">英語のみ</option>
+      </select>
+    </div>
+    <div class="btn-sep"></div>
+    <button class="btn" onclick="printPage('page-trend')">🖨 印刷</button>
+    <button class="btn green" onclick="exportCSV('trend')">⬇ Excel用CSV</button>
+  </div>
+  <div class="card mb12">
+    <div class="card-title" id="trend-title">週別 演習達成数推移</div>
+    <div class="cw h300"><canvas id="c-trend"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">週別 演習達成数 — 全体一覧テーブル</div>
+    <div class="tw h400"><table id="trend-table"><thead></thead><tbody></tbody></table></div>
+  </div>
+</div>
+
+<!-- ===== ALERTS ===== -->
+<div class="page" id="page-alerts">
+  <div class="toolbar">
+    <button class="btn" onclick="printPage('page-alerts')">🖨 印刷</button>
+    <button class="btn green" onclick="exportCSV('alerts')">⬇ Excel用CSV</button>
+  </div>
+  <div class="alert-sub-bar">
+    <button class="asb on-red" id="asb-reeval" onclick="switchAlertSub('reeval',this)">🔴 再評価テスト未受験 <span class="asb-n" id="asb-n-reeval">0</span></button>
+    <button class="asb" id="asb-other" onclick="switchAlertSub('other',this)">🟡 演習停滞・遅れ <span class="asb-n" id="asb-n-other">0</span></button>
+  </div>
+  <div id="panel-reeval">
+    <div class="g2">
+      <div>
+        <div class="al-head">🔴 数学 再評価テスト 未受験 <span class="al-cnt red" id="cnt-rm">0</span></div>
+        <div class="al-list" id="list-rm"></div>
+      </div>
+      <div>
+        <div class="al-head">🔴 英語 再評価テスト 未受験 <span class="al-cnt red" id="cnt-re">0</span></div>
+        <div class="al-list" id="list-re"></div>
+      </div>
+    </div>
+  </div>
+  <div id="panel-other" style="display:none">
+    <div class="g2">
+      <div>
+        <div class="al-head" style="margin-bottom:7px">🟡 演習ペース 大幅遅れ（平均の50%以下） <span class="al-cnt amber" id="cnt-slow">0</span></div>
+        <div class="al-list mb16" id="list-slow"></div>
+        <div class="al-head" style="margin-bottom:7px">🔴 数学 ブランク7日以上 <span class="al-cnt red" id="cnt-bm">0</span></div>
+        <div class="al-list" id="list-bm"></div>
+      </div>
+      <div>
+        <div class="al-head" style="margin-bottom:7px">🔴 7/31目標62%に大幅遅れ（1.5%未満） <span class="al-cnt red" id="cnt-far">0</span></div>
+        <div class="al-list mb16" id="list-far"></div>
+        <div class="al-head" style="margin-bottom:7px">🔴 英語 ブランク7日以上 <span class="al-cnt red" id="cnt-be">0</span></div>
+        <div class="al-list" id="list-be"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TANIN ===== -->
+<div class="page" id="page-tanin">
+  <div class="toolbar">
+    <button class="btn" onclick="printPage('page-tanin')">🖨 印刷</button>
+    <button class="btn green" onclick="exportCSV('tanin')">⬇ Excel用CSV</button>
+  </div>
+  <div class="g2 mb12">
+    <div class="card"><div class="card-title">担任別 — 数学 平均達成率</div><div class="cw"><canvas id="c-tanin-m"></canvas></div></div>
+    <div class="card"><div class="card-title">担任別 — 英語 平均達成率</div><div class="cw"><canvas id="c-tanin-e"></canvas></div></div>
+  </div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>順位</th><th>担任</th><th>担当数</th><th>数学 平均達成率</th><th>英語 平均達成率</th><th>数学 再評価%</th><th>英語 再評価%</th><th>数 今週平均</th><th>英 今週平均</th></tr></thead>
+      <tbody id="tanin-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== TANTO ===== -->
+<div class="page" id="page-tanto">
+  <div class="toolbar">
+    <button class="btn" onclick="printPage('page-tanto')">🖨 印刷</button>
+    <button class="btn green" onclick="exportCSV('tanto')">⬇ Excel用CSV</button>
+  </div>
+  <div class="g2 mb12">
+    <div class="card"><div class="card-title">担当別 — 数学 平均達成率</div><div class="cw"><canvas id="c-tanto-m"></canvas></div></div>
+    <div class="card"><div class="card-title">担当別 — 英語 平均達成率</div><div class="cw"><canvas id="c-tanto-e"></canvas></div></div>
+  </div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>順位</th><th>担当</th><th>担当数</th><th>数学 平均達成率</th><th>英語 平均達成率</th><th>数学 再評価%</th><th>英語 再評価%</th><th>数 今週平均</th><th>英 今週平均</th></tr></thead>
+      <tbody id="tanto-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- POPUP -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)closePopup()">
+  <div class="popup">
+    <button class="popup-close" onclick="closePopup()">✕</button>
+    <div class="popup-name" id="pu-name"></div>
+    <div class="popup-meta" id="pu-meta"></div>
+    <div class="popup-grid" id="pu-kpis"></div>
+    <div class="sep"></div>
+    <div id="pu-alerts"></div>
+  </div>
+</div>
+
+<script>
+// ========== DATA ==========
+const RAW = {"tekkoku":[{"id":59795379,"name":"八亀 颯花","grade":"高2","school":"相模原中等教育学校","m_total":224,"m_done":9,"m_rate":0.04,"m_ex":11,"m_acc":0.84,"m_week":0,"m_today":0,"m_last":"2026-06-15","m_reeval":"済","e_total":406,"e_done":19,"e_rate":0.047,"e_ex":25,"e_acc":0.81,"e_week":0,"e_today":0,"e_last":"2026-06-20","e_reeval":"済"},{"id":59803665,"name":"杉山 悠花","grade":"高2","school":"多摩高等学校","m_total":199,"m_done":7,"m_rate":0.035,"m_ex":12,"m_acc":0.622,"m_week":0,"m_today":0,"m_last":"2026-06-14","m_reeval":"済","e_total":298,"e_done":6,"e_rate":0.02,"e_ex":10,"e_acc":0.76,"e_week":0,"e_today":0,"e_last":"2026-06-14","e_reeval":"済"},{"id":60727047,"name":"河原 大輝","grade":"高2","school":"森村学園高等部","m_total":205,"m_done":1,"m_rate":0.005,"m_ex":4,"m_acc":0.25,"m_week":0,"m_today":0,"m_last":"2026-06-16","m_reeval":"未","e_total":321,"e_done":1,"e_rate":0.003,"e_ex":4,"e_acc":0.65,"e_week":4,"e_today":0,"e_last":"2026-06-23","e_reeval":"未"},{"id":61162833,"name":"安井 琴和","grade":"高2","school":"中央大学附属横浜高等学校","m_total":212,"m_done":6,"m_rate":0.028,"m_ex":8,"m_acc":0.813,"m_week":0,"m_today":0,"m_last":"2026-06-17","m_reeval":"済","e_total":298,"e_done":7,"e_rate":0.023,"e_ex":10,"e_acc":0.74,"e_week":0,"e_today":0,"e_last":"2026-06-20","e_reeval":"済"},{"id":62656074,"name":"草間 佳奈子","grade":"高2","school":"穎明館高等学校","m_total":199,"m_done":8,"m_rate":0.04,"m_ex":10,"m_acc":0.833,"m_week":0,"m_today":0,"m_last":"2026-06-20","m_reeval":"済","e_total":321,"e_done":6,"e_rate":0.019,"e_ex":8,"e_acc":0.85,"e_week":0,"e_today":0,"e_last":"2026-06-20","e_reeval":"済"},{"id":62695410,"name":"高松 淳志","grade":"高2","school":"桜美林高等学校","m_total":205,"m_done":3,"m_rate":0.015,"m_ex":5,"m_acc":0.733,"m_week":0,"m_today":0,"m_last":"2026-06-14","m_reeval":"未","e_total":321,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":"未"},{"id":62953508,"name":"磯海 天斗","grade":"高2","school":"元石川高等学校","m_total":205,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":null,"e_done":null,"e_rate":null,"e_ex":null,"e_acc":null,"e_week":null,"e_today":null,"e_last":null,"e_reeval":null},{"id":65262247,"name":"波多野 結乙","grade":"高2","school":"フェリス女学院高等学校","m_total":199,"m_done":8,"m_rate":0.04,"m_ex":13,"m_acc":0.467,"m_week":0,"m_today":0,"m_last":"2026-06-20","m_reeval":"済","e_total":321,"e_done":2,"e_rate":0.006,"e_ex":7,"e_acc":0.629,"e_week":0,"e_today":0,"e_last":"2026-06-20","e_reeval":"済"},{"id":66296731,"name":"橋本 隆希","grade":"高2","school":"朋優学院高等学校","m_total":199,"m_done":6,"m_rate":0.03,"m_ex":9,"m_acc":0.811,"m_week":1,"m_today":0,"m_last":"2026-06-22","m_reeval":"済","e_total":321,"e_done":0,"e_rate":0,"e_ex":5,"e_acc":0.28,"e_week":0,"e_today":0,"e_last":"2026-06-16","e_reeval":"済"},{"id":74799347,"name":"小林 篤史","grade":"高2","school":"相模原中等教育学校","m_total":213,"m_done":7,"m_rate":0.033,"m_ex":10,"m_acc":0.733,"m_week":0,"m_today":0,"m_last":"2026-06-20","m_reeval":"済","e_total":321,"e_done":4,"e_rate":0.012,"e_ex":9,"e_acc":0.6,"e_week":0,"e_today":0,"e_last":"2026-06-20","e_reeval":"済"},{"id":74810812,"name":"植竹 蓮","grade":"高2","school":"相模原中等教育学校","m_total":212,"m_done":8,"m_rate":0.038,"m_ex":10,"m_acc":0.8,"m_week":0,"m_today":0,"m_last":"2026-06-20","m_reeval":"済","e_total":321,"e_done":4,"e_rate":0.012,"e_ex":9,"e_acc":0.629,"e_week":0,"e_today":0,"e_last":"2026-06-20","e_reeval":"済"},{"id":80554679,"name":"池田 晃輔","grade":"高2","school":"桐蔭学園高等学校","m_total":null,"m_done":null,"m_rate":null,"m_ex":null,"m_acc":null,"m_week":null,"m_today":null,"m_last":null,"m_reeval":null,"e_total":321,"e_done":3,"e_rate":0.009,"e_ex":5,"e_acc":0.8,"e_week":5,"e_today":0,"e_last":"2026-06-23","e_reeval":"未"},{"id":80557783,"name":"加藤 祐暉","grade":"高2","school":"サレジオ学院高等学校","m_total":199,"m_done":8,"m_rate":0.04,"m_ex":13,"m_acc":0.6,"m_week":0,"m_today":0,"m_last":"2026-06-20","m_reeval":"済","e_total":321,"e_done":6,"e_rate":0.019,"e_ex":10,"e_acc":0.68,"e_week":10,"e_today":0,"e_last":"2026-06-21","e_reeval":"済"},{"id":80665616,"name":"山岸 裕成","grade":"高2","school":"栄光学園高等学校","m_total":205,"m_done":9,"m_rate":0.044,"m_ex":10,"m_acc":0.94,"m_week":0,"m_today":0,"m_last":"2026-06-18","m_reeval":"済","e_total":321,"e_done":9,"e_rate":0.028,"e_ex":10,"e_acc":0.88,"e_week":10,"e_today":0,"e_last":"2026-06-21","e_reeval":"済"},{"id":80775977,"name":"祢冝 耀大","grade":"高2","school":"日本大学第三高等学校","m_total":199,"m_done":2,"m_rate":0.01,"m_ex":7,"m_acc":0.524,"m_week":0,"m_today":0,"m_last":"2026-06-15","m_reeval":"済","e_total":321,"e_done":6,"e_rate":0.019,"e_ex":8,"e_acc":0.775,"e_week":0,"e_today":0,"e_last":"2026-06-15","e_reeval":"済"},{"id":80778879,"name":"白石 蒼翔","grade":"高2","school":"相模原中等教育学校","m_total":199,"m_done":7,"m_rate":0.035,"m_ex":9,"m_acc":0.959,"m_week":0,"m_today":0,"m_last":"2026-06-20","m_reeval":"済","e_total":null,"e_done":null,"e_rate":null,"e_ex":null,"e_acc":null,"e_week":null,"e_today":null,"e_last":null,"e_reeval":null},{"id":80815456,"name":"福地 大紀","grade":"高2","school":"横浜翠陵高等学校","m_total":205,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":321,"e_done":6,"e_rate":0.019,"e_ex":9,"e_acc":0.778,"e_week":0,"e_today":0,"e_last":"2026-06-18","e_reeval":"済"},{"id":80822193,"name":"小林 歩未","grade":"高2","school":"厚木高等学校","m_total":199,"m_done":6,"m_rate":0.03,"m_ex":8,"m_acc":0.813,"m_week":0,"m_today":0,"m_last":"2026-06-20","m_reeval":"済","e_total":321,"e_done":10,"e_rate":0.031,"e_ex":15,"e_acc":0.66,"e_week":0,"e_today":0,"e_last":"2026-06-19","e_reeval":"済"},{"id":80853986,"name":"松永 航成","grade":"高2","school":"桐蔭学園高等学校","m_total":null,"m_done":null,"m_rate":null,"m_ex":null,"m_acc":null,"m_week":null,"m_today":null,"m_last":null,"m_reeval":null,"e_total":321,"e_done":1,"e_rate":0.003,"e_ex":2,"e_acc":0.7,"e_week":0,"e_today":0,"e_last":"2026-06-15","e_reeval":"未"},{"id":80862845,"name":"伊藤 早妃","grade":"高2","school":"中央大学附属横浜高等学校","m_total":205,"m_done":5,"m_rate":0.024,"m_ex":8,"m_acc":0.804,"m_week":8,"m_today":0,"m_last":"2026-06-21","m_reeval":"未","e_total":321,"e_done":11,"e_rate":0.034,"e_ex":20,"e_acc":0.495,"e_week":19,"e_today":0,"e_last":"2026-06-21","e_reeval":"済"},{"id":80971636,"name":"井下原 怜","grade":"高2","school":"世田谷学園高等学校","m_total":199,"m_done":5,"m_rate":0.025,"m_ex":10,"m_acc":0.55,"m_week":0,"m_today":0,"m_last":"2026-06-16","m_reeval":"済","e_total":321,"e_done":2,"e_rate":0.006,"e_ex":6,"e_acc":0.667,"e_week":6,"e_today":0,"e_last":"2026-06-23","e_reeval":"未"},{"id":81040822,"name":"金 リア","grade":"高2","school":"穎明館高等学校","m_total":199,"m_done":2,"m_rate":0.01,"m_ex":7,"m_acc":0.317,"m_week":0,"m_today":0,"m_last":"2026-06-20","m_reeval":"済","e_total":321,"e_done":0,"e_rate":0,"e_ex":5,"e_acc":0.4,"e_week":0,"e_today":0,"e_last":"2026-06-20","e_reeval":"済"},{"id":81132298,"name":"小池 祥太朗","grade":"高2","school":"栄光学園高等学校","m_total":199,"m_done":6,"m_rate":0.03,"m_ex":11,"m_acc":0.475,"m_week":0,"m_today":0,"m_last":"2026-06-17","m_reeval":"済","e_total":321,"e_done":5,"e_rate":0.016,"e_ex":10,"e_acc":0.7,"e_week":0,"e_today":0,"e_last":"2026-06-17","e_reeval":"済"},{"id":81149026,"name":"花田 伊織","grade":"高2","school":"横浜市立横浜サイエンスフロンティア高等学校","m_total":199,"m_done":2,"m_rate":0.01,"m_ex":7,"m_acc":0.433,"m_week":0,"m_today":0,"m_last":"2026-06-20","m_reeval":"済","e_total":321,"e_done":6,"e_rate":0.019,"e_ex":8,"e_acc":0.85,"e_week":0,"e_today":0,"e_last":"2026-06-20","e_reeval":"済"},{"id":81210922,"name":"井上 紗希","grade":"高2","school":"大和高等学校","m_total":207,"m_done":7,"m_rate":0.034,"m_ex":11,"m_acc":0.71,"m_week":10,"m_today":0,"m_last":"2026-06-22","m_reeval":"済","e_total":321,"e_done":1,"e_rate":0.003,"e_ex":6,"e_acc":0.567,"e_week":6,"e_today":0,"e_last":"2026-06-22","e_reeval":"済"},{"id":81271077,"name":"大井 玲奈","grade":"高2","school":"川和高等学校","m_total":199,"m_done":6,"m_rate":0.03,"m_ex":8,"m_acc":0.942,"m_week":0,"m_today":0,"m_last":"2026-06-19","m_reeval":"済","e_total":321,"e_done":6,"e_rate":0.019,"e_ex":11,"e_acc":0.5,"e_week":0,"e_today":0,"e_last":"2026-06-19","e_reeval":"済"},{"id":81913150,"name":"田玉 創士","grade":"高2","school":"青稜高等学校","m_total":null,"m_done":null,"m_rate":null,"m_ex":null,"m_acc":null,"m_week":null,"m_today":null,"m_last":null,"m_reeval":null,"e_total":321,"e_done":5,"e_rate":0.016,"e_ex":10,"e_acc":0.72,"e_week":0,"e_today":0,"e_last":"2026-06-20","e_reeval":"済"},{"id":81922329,"name":"柴田 匡規","grade":"高2","school":"桐蔭学園高等学校","m_total":207,"m_done":7,"m_rate":0.034,"m_ex":9,"m_acc":0.833,"m_week":0,"m_today":0,"m_last":"2026-06-15","m_reeval":"済","e_total":303,"e_done":6,"e_rate":0.02,"e_ex":9,"e_acc":0.756,"e_week":0,"e_today":0,"e_last":"2026-06-17","e_reeval":"済"},{"id":82057877,"name":"飯島 寛大","grade":"高2","school":"日々輝学園高等学校","m_total":205,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":321,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":"未"},{"id":82521727,"name":"田才 知沙都","grade":"高2","school":"桐蔭学園高等学校","m_total":199,"m_done":1,"m_rate":0.005,"m_ex":6,"m_acc":0.483,"m_week":0,"m_today":0,"m_last":"2026-06-15","m_reeval":"済","e_total":321,"e_done":1,"e_rate":0.003,"e_ex":6,"e_acc":0.6,"e_week":0,"e_today":0,"e_last":"2026-06-15","e_reeval":"済"},{"id":82609063,"name":"成田 英一朗","grade":"高2","school":"桐蔭学園高等学校","m_total":216,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":321,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":"未"},{"id":82646856,"name":"諏訪 倖之介","grade":"高2","school":"桐蔭学園高等学校","m_total":209,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":321,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":"未"},{"id":82734666,"name":"小笹山 慎二","grade":"高2","school":"市ケ尾高等学校","m_total":199,"m_done":10,"m_rate":0.05,"m_ex":15,"m_acc":0.59,"m_week":0,"m_today":0,"m_last":"2026-06-20","m_reeval":"済","e_total":321,"e_done":6,"e_rate":0.019,"e_ex":8,"e_acc":0.8,"e_week":0,"e_today":0,"e_last":"2026-06-20","e_reeval":"済"},{"id":82741875,"name":"藤本 遼","grade":"高2","school":"文教大学付属高等学校","m_total":205,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":321,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":"未"},{"id":82818622,"name":"村木 雄真","grade":"高2","school":"川和高等学校","m_total":208,"m_done":4,"m_rate":0.019,"m_ex":7,"m_acc":0.729,"m_week":0,"m_today":0,"m_last":"2026-06-15","m_reeval":"未","e_total":321,"e_done":9,"e_rate":0.028,"e_ex":10,"e_acc":0.82,"e_week":0,"e_today":0,"e_last":"2026-06-15","e_reeval":"済"},{"id":82849129,"name":"福山 優太","grade":"高2","school":"市ケ尾高等学校","m_total":null,"m_done":null,"m_rate":null,"m_ex":null,"m_acc":null,"m_week":null,"m_today":null,"m_last":null,"m_reeval":null,"e_total":321,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":"未"},{"id":82858691,"name":"園田 一矢","grade":"高2","school":"元石川高等学校","m_total":199,"m_done":4,"m_rate":0.02,"m_ex":9,"m_acc":0.414,"m_week":0,"m_today":0,"m_last":"2026-06-19","m_reeval":"済","e_total":321,"e_done":0,"e_rate":0,"e_ex":5,"e_acc":0.32,"e_week":0,"e_today":0,"e_last":"2026-06-19","e_reeval":"済"},{"id":82896801,"name":"佐藤 大晴","grade":"高2","school":"青稜高等学校","m_total":213,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":321,"e_done":5,"e_rate":0.016,"e_ex":10,"e_acc":0.66,"e_week":0,"e_today":0,"e_last":"2026-06-16","e_reeval":"済"},{"id":82903310,"name":"田中 杏和","grade":"高2","school":"横浜翠嵐高等学校","m_total":205,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":null,"e_done":null,"e_rate":null,"e_ex":null,"e_acc":null,"e_week":null,"e_today":null,"e_last":null,"e_reeval":null},{"id":82909415,"name":"高井 蒼斗","grade":"高2","school":"桐蔭学園高等学校","m_total":205,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":321,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":"未"},{"id":82915768,"name":"安藤 航汰","grade":"高2","school":"元石川高等学校","m_total":205,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":321,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":"未"},{"id":82923787,"name":"田口 瑛惺","grade":"高2","school":"大和高等学校","m_total":199,"m_done":2,"m_rate":0.01,"m_ex":7,"m_acc":0.511,"m_week":0,"m_today":0,"m_last":"2026-06-19","m_reeval":"済","e_total":321,"e_done":11,"e_rate":0.034,"e_ex":21,"e_acc":0.48,"e_week":0,"e_today":0,"e_last":"2026-06-19","e_reeval":"済"},{"id":83033327,"name":"小山田 有希","grade":"高2","school":"横浜共立学園高等学校","m_total":205,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":null,"e_done":null,"e_rate":null,"e_ex":null,"e_acc":null,"e_week":null,"e_today":null,"e_last":null,"e_reeval":null},{"id":83045520,"name":"田淵 紗椰","grade":"高2","school":"桐蔭学園高等学校","m_total":199,"m_done":8,"m_rate":0.04,"m_ex":13,"m_acc":0.489,"m_week":0,"m_today":0,"m_last":"2026-06-15","m_reeval":"済","e_total":321,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":"未"},{"id":83059971,"name":"戸塚 佳明","grade":"高2","school":"桐蔭学園中等教育学校","m_total":205,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":321,"e_done":3,"e_rate":0.009,"e_ex":8,"e_acc":0.55,"e_week":0,"e_today":0,"e_last":"2026-06-17","e_reeval":"済"},{"id":83074091,"name":"小林 柚紀","grade":"高2","school":"香蘭女学校高等科","m_total":207,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":321,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":"未"},{"id":83120211,"name":"圓谷 すみれ","grade":"高2","school":"桐蔭学園高等学校","m_total":199,"m_done":3,"m_rate":0.015,"m_ex":8,"m_acc":0.462,"m_week":0,"m_today":0,"m_last":"2026-06-15","m_reeval":"済","e_total":321,"e_done":1,"e_rate":0.003,"e_ex":6,"e_acc":0.6,"e_week":0,"e_today":0,"e_last":"2026-06-15","e_reeval":"済"}],"kiso":[{"id":63750406,"name":"小林 彪","grade":"高1","school":"駒場東邦高等学校","m_total":175,"m_done":9,"m_rate":0.051,"m_ex":10,"m_acc":0.967,"m_week":0,"m_today":0,"m_last":"2026-06-20","m_reeval":"済","e_total":158,"e_done":8,"e_rate":0.051,"e_ex":10,"e_acc":0.84,"e_week":0,"e_today":0,"e_last":"2026-06-20","e_reeval":"済"},{"id":74176811,"name":"平 悠人","grade":"高1","school":"駒場東邦中学校","m_total":276,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":173,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":"未"},{"id":76388832,"name":"田中 唯華","grade":"高1","school":"桜美林中学校","m_total":243,"m_done":7,"m_rate":0.029,"m_ex":9,"m_acc":0.87,"m_week":0,"m_today":0,"m_last":"2026-06-16","m_reeval":"済","e_total":188,"e_done":6,"e_rate":0.032,"e_ex":8,"e_acc":0.775,"e_week":0,"e_today":0,"e_last":"2026-06-16","e_reeval":"済"},{"id":78010861,"name":"岐部 理央那","grade":"高1","school":"神奈川大学附属高等学校","m_total":243,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":188,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":"未"},{"id":80852122,"name":"吉本 真帆","grade":"高1","school":"田園調布雙葉高等学校","m_total":243,"m_done":5,"m_rate":0.021,"m_ex":8,"m_acc":0.792,"m_week":0,"m_today":0,"m_last":"2026-06-17","m_reeval":"未","e_total":188,"e_done":4,"e_rate":0.021,"e_ex":5,"e_acc":0.88,"e_week":0,"e_today":0,"e_last":"2026-06-17","e_reeval":"未"},{"id":81006284,"name":"大畑 茉里奈","grade":"高1","school":"桐蔭学園中等教育学校","m_total":0,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":null,"e_total":0,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":null},{"id":81034989,"name":"小野 巧翔","grade":"高1","school":"日本大学藤沢中学校","m_total":216,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":"未","e_total":188,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":"未"},{"id":81927657,"name":"小松 樹生","grade":"高1","school":"横浜サイエンスフロンティア高等学校附属中学校","m_total":0,"m_done":0,"m_rate":0,"m_ex":0,"m_acc":0,"m_week":0,"m_today":0,"m_last":null,"m_reeval":null,"e_total":0,"e_done":0,"e_rate":0,"e_ex":0,"e_acc":0,"e_week":0,"e_today":0,"e_last":null,"e_reeval":null},{"id":82645558,"name":"中島 優華","grade":"高1","school":"相模女子大学中学部","m_total":234,"m_done":6,"m_rate":0.026,"m_ex":9,"m_acc":0.796,"m_week":0,"m_today":0,"m_last":"2026-06-18","m_reeval":"済","e_total":188,"e_done":4,"e_rate":0.021,"e_ex":9,"e_acc":0.622,"e_week":0,"e_today":0,"e_last":"2026-06-18","e_reeval":"済"},{"id":82990697,"name":"原 綾霞","grade":"高1","school":"川和高等学校","m_total":216,"m_done":5,"m_rate":0.023,"m_ex":10,"m_acc":0.693,"m_week":0,"m_today":0,"m_last":"2026-06-20","m_reeval":"済","e_total":188,"e_done":6,"e_rate":0.032,"e_ex":9,"e_acc":0.756,"e_week":0,"e_today":0,"e_last":"2026-06-20","e_reeval":"済"}],"staff":{"56189664":{"tanin":"小林 彩佳","tanto":"井上 瑚都"},"59795379":{"tanin":"福井 宏樹","tanto":"伊藤 みいな"},"59803665":{"tanin":"福井 宏樹","tanto":"竹内 美結"},"60056070":{"tanin":"福井 宏樹","tanto":"石崎 遙大"},"60727047":{"tanin":"伊藤 みいな","tanto":"飯田 瑞菜"},"61162833":{"tanin":"小林 彩佳","tanto":"井上 瑚都"},"62656074":{"tanin":"福井 宏樹","tanto":"小林 彩佳"},"62695410":{"tanin":"高森 陽大","tanto":"圓谷 咲良"},"62927124":{"tanin":"高森 陽大","tanto":"圓谷 咲良"},"62953508":{"tanin":"本城 愛梨沙","tanto":"原 琉真"},"63750406":{"tanin":"高森 陽大","tanto":"石崎 遙大"},"65262247":{"tanin":"福井 宏樹","tanto":"伊藤 みいな"},"65319478":{"tanin":"高森 陽大","tanto":"河辺 美緒"},"66296731":{"tanin":"高森 陽大","tanto":"飯田 瑞菜"},"67526705":{"tanin":"福井 宏樹","tanto":"飯田 瑞菜"},"74176811":{"tanin":"福井 宏樹","tanto":"石崎 遙大"},"74799347":{"tanin":"高森 陽大","tanto":"小野 美波"},"74810812":{"tanin":"福井 宏樹","tanto":"小野 美波"},"74983831":{"tanin":"福井 宏樹","tanto":"佐藤 真優"},"76388832":{"tanin":"福井 宏樹","tanto":"岩鬼 梨央"},"78010861":{"tanin":"福井 宏樹","tanto":"有泉 まりも"},"80253032":{"tanin":"福井 宏樹","tanto":"竹内 美結"},"80336264":{"tanin":"福井 宏樹","tanto":"石崎 遙大"},"80392661":{"tanin":"福井 宏樹","tanto":"原 琉真"},"80554679":{"tanin":"福井 宏樹","tanto":"吉田 陽紀"},"80557775":{"tanin":"高森 陽大","tanto":"兒玉 峻"},"80557783":{"tanin":"福井 宏樹","tanto":"飯田 瑞菜"},"80665616":{"tanin":"高森 陽大","tanto":"佐藤 真優"},"80775977":{"tanin":"福井 宏樹","tanto":"芳本 隆晃"},"80778879":{"tanin":"小林 彩佳","tanto":"小野 美波"},"80815456":{"tanin":"本城 愛梨沙","tanto":"原 琉真"},"80822193":{"tanin":"福井 宏樹","tanto":"伊藤 みいな"},"80852122":{"tanin":"福井 宏樹","tanto":"岩鬼 梨央"},"80853986":{"tanin":"高森 陽大","tanto":"吉田 陽紀"},"80862845":{"tanin":"高森 陽大","tanto":"井上 瑚都"},"80967493":{"tanin":"高森 陽大","tanto":"塩月 依真"},"80971636":{"tanin":"高森 陽大","tanto":"飯田 瑞菜"},"81006284":{"tanin":"福井 宏樹","tanto":"岩鬼 梨央"},"81034989":{"tanin":"福井 宏樹","tanto":"兒玉 峻"},"81040822":{"tanin":"福井 宏樹","tanto":"伊藤 みいな"},"81132298":{"tanin":"福井 宏樹","tanto":"佐藤 真優"},"81149026":{"tanin":"高森 陽大","tanto":"小野 美波"},"81210922":{"tanin":"井上 瑚都","tanto":"伊藤 みいな"},"81271077":{"tanin":"高森 陽大","tanto":"井上 瑚都"},"81444311":{"tanin":"福井 宏樹","tanto":"塩月 依真"},"81747977":{"tanin":"高森 陽大","tanto":"兒玉 峻"},"81913150":{"tanin":"高森 陽大","tanto":"高壽 千陽"},"81922329":{"tanin":"高森 陽大","tanto":"岩田 遼"},"81927657":{"tanin":"高森 陽大","tanto":"石崎 遙大"},"82014698":{"tanin":"福井 宏樹","tanto":"佐藤 真優"},"82041181":{"tanin":"小林 彩佳","tanto":"佐藤 真優"},"82057877":{"tanin":"武田 拓樹","tanto":"芳本 隆晃"},"82134812":{"tanin":"福井 宏樹","tanto":"小林 彩佳"},"82521727":{"tanin":"伊藤 みいな","tanto":"河辺 美緒"},"82609063":{"tanin":"福井 宏樹","tanto":"塩月 依真"},"82645558":{"tanin":"高森 陽大","tanto":"出野 花"},"82646856":{"tanin":"武田 拓樹","tanto":"塩月 依真"},"82714410":{"tanin":"福井 宏樹","tanto":"有泉 まりも"},"82718377":{"tanin":"福井 宏樹","tanto":"長嶋 桂大"},"82734640":{"tanin":"福井 宏樹","tanto":"竹内 美結"},"82734666":{"tanin":"武田 拓樹","tanto":"圓谷 咲良"},"82741875":{"tanin":"高森 陽大","tanto":"小鍋 一翔"},"82775435":{"tanin":"高森 陽大","tanto":"兒玉 峻"},"82785481":{"tanin":"高森 陽大","tanto":"石崎 遙大"},"82818622":{"tanin":"本城 愛梨沙","tanto":"長嶋 桂大"},"82830681":{"tanin":"福井 宏樹","tanto":"井上 瑚都"},"82849129":{"tanin":"高森 陽大","tanto":"小鍋 一翔"},"82858691":{"tanin":"有泉 まりも","tanto":"圓谷 咲良"},"82896801":{"tanin":"高森 陽大","tanto":"高壽 千陽"},"82903212":{"tanin":"高森 陽大","tanto":"関 亮輔"},"82903310":{"tanin":"高森 陽大","tanto":"出野 花"},"82909415":{"tanin":"高森 陽大","tanto":"吉田 陽紀"},"82915768":{"tanin":"井上 瑚都","tanto":"圓谷 咲良"},"82923787":{"tanin":"高森 陽大","tanto":"小鍋 一翔"},"82985847":{"tanin":"高森 陽大","tanto":"長嶋 桂大"},"82990697":{"tanin":"高森 陽大","tanto":"有泉 まりも"},"83033327":{"tanin":"高森 陽大","tanto":"小林 彩佳"},"83045520":{"tanin":"高森 陽大","tanto":"河辺 美緒"},"83046879":{"tanin":"高森 陽大","tanto":"兒玉 峻"},"83049002":{"tanin":"高森 陽大","tanto":"石崎 遙大"},"83059971":{"tanin":"福井 宏樹","tanto":"塩月 依真"},"83074091":{"tanin":"福井 宏樹","tanto":"井上 瑚都"},"83120211":{"tanin":"本城 愛梨沙","tanto":"河辺 美緒"},"83570438":{"tanin":null,"tanto":null}}};
+const TODAY=new Date('2026-06-26');
+const DEADLINE=new Date('2026-07-31');
+const TARGET=0.62;
+// 週ラベル (6/15開始、データ取得時点は6/22週のみ今週演習数あり)
+const WEEKS=['6/15週','6/22週'];
+
+// ========== HELPERS ==========
+const getData=()=>mode==='tekkoku'?RAW.tekkoku:RAW.kiso;
+const getStaff=id=>RAW.staff[String(id)]||{tanin:null,tanto:null};
+const pct=v=>v==null?'–':(v*100).toFixed(1)+'%';
+const n=(v,d=0)=>v==null?'–':Number(v).toFixed(d);
+const daysSince=ds=>{if(!ds)return null;return Math.floor((TODAY-new Date(ds))/86400000)};
+const rateCol=r=>{
+  if(r==null)return'var(--gray)';
+  if(r>=0.04)return'var(--green)';
+  if(r>=0.02)return'var(--blue)';
+  if(r>=0.01)return'var(--amber)';
+  return'var(--red)';
+};
+const avgArr=(arr,key)=>{
+  const vs=arr.map(d=>d[key]).filter(v=>v!=null&&typeof v==='number');
+  return vs.length?vs.reduce((a,b)=>a+b)/vs.length:null;
+};
+const destroyC=id=>{if(charts[id]){charts[id].destroy();delete charts[id];}};
+
+function forecastBadge(rate){
+  if(rate==null)return'<span class="b b-gray">データなし</span>';
+  const daysLeft=Math.ceil((DEADLINE-TODAY)/86400000);
+  if(rate>=TARGET)return'<span class="b b-ok">✓ 達成済</span>';
+  if(rate===0)return'<span class="b b-ng">未開始</span>';
+  const daysElapsed=Math.max(1,Math.ceil((TODAY-new Date('2026-06-15'))/86400000));
+  const rpd=rate/daysElapsed;
+  if(rpd<=0)return'<span class="b b-ng">目標困難</span>';
+  const need=Math.ceil((TARGET-rate)/rpd);
+  if(need<=daysLeft){
+    const d=new Date(TODAY);d.setDate(d.getDate()+need);
+    return`<span class="b b-ok">${d.getMonth()+1}/${d.getDate()}頃達成見込</span>`;
+  }else{
+    const d=new Date(TODAY);d.setDate(d.getDate()+need);
+    return`<span class="b b-ng">${d.getMonth()+1}/${d.getDate()}頃（期限超）</span>`;
+  }
+}
+
+// ========== MODE / TAB SWITCH ==========
+function switchMode(m){
+  mode=m;
+  document.getElementById('btn-tek').className='mode-btn'+(m==='tekkoku'?' on-blue':'');
+  document.getElementById('btn-kiso').className='mode-btn'+(m==='kiso'?' on-teal':'');
+  const ap=document.querySelector('.page.on');
+  if(ap)render(ap.id.replace('page-',''));
+}
+function switchTab(id,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('page-'+id).classList.add('on');
+  render(id);
+}
+function switchAlertSub(sub,el){
+  alertSub=sub;
+  document.querySelectorAll('.asb').forEach(b=>{b.classList.remove('on-red','on-amber')});
+  el.classList.add(sub==='reeval'?'on-red':'on-amber');
+  document.getElementById('panel-reeval').style.display=sub==='reeval'?'block':'none';
+  document.getElementById('panel-other').style.display=sub==='other'?'block':'none';
+}
+function render(tab){
+  if(tab==='overview')renderOverview();
+  else if(tab==='rate')renderRate();
+  else if(tab==='students')renderStudents();
+  else if(tab==='trend')renderTrend();
+  else if(tab==='alerts'){renderAlerts();}
+  else if(tab==='tanin')renderStaff('tanin');
+  else if(tab==='tanto')renderStaff('tanto');
+}
+
+// ========== OVERVIEW ==========
+function renderOverview(){
+  const data=getData();
+  const mRates=data.filter(d=>d.m_rate!=null&&typeof d.m_rate==='number').map(d=>d.m_rate);
+  const eRates=data.filter(d=>d.e_rate!=null&&typeof d.e_rate==='number').map(d=>d.e_rate);
+  const avgM=mRates.length?mRates.reduce((a,b)=>a+b)/mRates.length:0;
+  const avgE=eRates.length?eRates.reduce((a,b)=>a+b)/eRates.length:0;
+  const rmD=data.filter(d=>d.m_reeval==='済').length,rmT=data.filter(d=>d.m_reeval!=null).length;
+  const reD=data.filter(d=>d.e_reeval==='済').length,reT=data.filter(d=>d.e_reeval!=null).length;
+  document.getElementById('kpi-row').innerHTML=`
+    <div class="kpi c-blue"><div class="kpi-label">登録生徒数</div><div class="kpi-val blue">${data.length}<span style="font-size:14px;font-weight:500">名</span></div><div class="kpi-note">${mode==='tekkoku'?'高2 定石問題演習':'高1 基礎定着演習'}</div></div>
+    <div class="kpi c-blue"><div class="kpi-label">数学 校舎平均達成率</div><div class="kpi-val blue">${pct(avgM)}</div><div class="kpi-diff behind">目標62%まで あと${((TARGET-avgM)*100).toFixed(1)}%</div></div>
+    <div class="kpi c-teal"><div class="kpi-label">英語 校舎平均達成率</div><div class="kpi-val teal">${pct(avgE)}</div><div class="kpi-diff behind">目標62%まで あと${((TARGET-avgE)*100).toFixed(1)}%</div></div>
+    <div class="kpi c-amber"><div class="kpi-label">数学 再評価完了</div><div class="kpi-val amber">${rmD}<span style="font-size:13px;font-weight:500">/${rmT}名</span></div><div class="kpi-note">${rmT?((rmD/rmT*100).toFixed(0))+'% 完了':'–'}</div></div>
+    <div class="kpi c-amber"><div class="kpi-label">英語 再評価完了</div><div class="kpi-val amber">${reD}<span style="font-size:13px;font-weight:500">/${reT}名</span></div><div class="kpi-note">${reT?((reD/reT*100).toFixed(0))+'% 完了':'–'}</div></div>
+  `;
+  renderDist('c-dist-m',mRates,'#2563eb');
+  renderDist('c-dist-e',eRates,'#0891b2');
+  renderTarget('c-tgt-m',data,'m_rate','#2563eb');
+  renderTarget('c-tgt-e',data,'e_rate','#0891b2');
+}
+
+function renderDist(id,rates,color){
+  destroyC(id);
+  const bins=['0%','〜1%','〜2%','〜3%','〜4%','〜5%','〜6%','〜7%','7%+'];
+  const counts=[0,0,0,0,0,0,0,0,0];
+  rates.forEach(r=>{const p=r*100;if(p===0)counts[0]++;else if(p<1)counts[1]++;else if(p<2)counts[2]++;else if(p<3)counts[3]++;else if(p<4)counts[4]++;else if(p<5)counts[5]++;else if(p<6)counts[6]++;else if(p<7)counts[7]++;else counts[8]++;});
+  const ctx=document.getElementById(id).getContext('2d');
+  charts[id]=new Chart(ctx,{type:'bar',data:{labels:bins,datasets:[{data:counts,backgroundColor:color+'33',borderColor:color,borderWidth:2,borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw}名`}}},
+    scales:{x:{ticks:{color:'#64748b',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#64748b',font:{size:10},stepSize:1},grid:{color:'#f1f5f9'},beginAtZero:true}}}});
+}
+
+function renderTarget(id,data,field,color){
+  destroyC(id);
+  const sorted=data.filter(d=>d[field]!=null&&typeof d[field]==='number').sort((a,b)=>b[field]-a[field]);
+  const names=sorted.map(d=>d.name.replace(' ',''));
+  const vals=sorted.map(d=>+(d[field]*100).toFixed(2));
+  const ctx=document.getElementById(id).getContext('2d');
+  charts[id]=new Chart(ctx,{type:'bar',
+    data:{labels:names,datasets:[
+      {data:vals,backgroundColor:vals.map(v=>v>=62?'#16a34a44':v>=30?color+'55':'#dc262655'),borderColor:vals.map(v=>v>=62?'#16a34a':v>=30?color:'#dc2626'),borderWidth:1.5,borderRadius:3},
+      {type:'line',data:new Array(names.length).fill(62),borderColor:'#d97706',borderWidth:2,borderDash:[6,3],pointRadius:0,order:0}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw}%`}}},
+    scales:{x:{ticks:{color:'#64748b',font:{size:9},maxRotation:65},grid:{display:false}},
+    y:{ticks:{color:'#64748b',font:{size:10},callback:v=>v+'%'},grid:{color:'#f1f5f9'},max:75,min:0}}}});
+}
+
+// ========== RATE (全生徒横棒) ==========
+function renderRate(){
+  const data=getData();
+  const sort=document.getElementById('rate-sort').value;
+  let sorted=[...data];
+  if(sort==='m_rate_d')sorted.sort((a,b)=>(b.m_rate??-1)-(a.m_rate??-1));
+  else if(sort==='m_rate_a')sorted.sort((a,b)=>(a.m_rate??-1)-(b.m_rate??-1));
+  else if(sort==='e_rate_d')sorted.sort((a,b)=>(b.e_rate??-1)-(a.e_rate??-1));
+  else sorted.sort((a,b)=>a.name.localeCompare(b.name));
+
+  const maxM=Math.max(...sorted.map(d=>d.m_rate??0),0.65);
+  const maxE=Math.max(...sorted.map(d=>d.e_rate??0),0.65);
+
+  const mkRows=(el,field,color,maxVal)=>{
+    const targetPx=Math.min(TARGET/maxVal*100,99);
+    const activeData=sorted.filter(d=>d[field]!=null);
+    el.innerHTML='';
+    activeData.forEach(d=>{
+      const r=d[field]??0;
+      const pct100=Math.min(r/maxVal*100,100);
+      const col=rateCol(r);
+      const fc=forecastBadge(r).replace(/class="b /g,'class="rc-badge b-');
+      const row=document.createElement('div');
+      row.className='rc-row';
+      row.innerHTML=`
+        <div class="rc-name" onclick="openPopup(${d.id})" title="${d.name}">${d.name.replace(' ','')}</div>
+        <div class="rc-bar-wrap">
+          <div class="rc-bar" style="width:${pct100}%;background:${col}22;border:1.5px solid ${col}">
+            <div style="position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:9px;font-weight:700;color:${col}">${(r*100).toFixed(1)}%</div>
+          </div>
+          <div class="rc-target-line" style="left:${targetPx}%" title="目標62%"></div>
+        </div>
+        <span class="b b-${d.m_reeval==='済'||d.e_reeval==='済'?'ok':d.m_reeval==='未'||d.e_reeval==='未'?'ng':'gray'}" style="font-size:9px;min-width:28px;text-align:center">${field==='m_rate'?(d.m_reeval||'–'):(d.e_reeval||'–')}</span>
+      `;
+      el.appendChild(row);
+    });
+    return activeData.length;
+  };
+
+  const cntM=mkRows(document.getElementById('rate-chart-m'),'m_rate','#2563eb',maxM);
+  const cntE=mkRows(document.getElementById('rate-chart-e'),'e_rate','#0891b2',maxE);
+  document.getElementById('rate-cnt-m').textContent=`${cntM}名`;
+  document.getElementById('rate-cnt-e').textContent=`${cntE}名`;
+}
+
+// ========== STUDENTS ==========
+function renderStudents(){
+  const data=getData();
+  const q=document.getElementById('s-q').value.toLowerCase();
+  const rm=document.getElementById('s-rm').value;
+  const re=document.getElementById('s-re').value;
+  const sort=document.getElementById('s-sort').value;
+  const avgM=avgArr(data.filter(d=>d.m_rate!=null),'m_rate')||0;
+  const avgE=avgArr(data.filter(d=>d.e_rate!=null),'e_rate')||0;
+
+  let rows=data.filter(d=>{
+    if(q&&!d.name.toLowerCase().includes(q))return false;
+    if(rm&&d.m_reeval!==rm)return false;
+    if(re&&d.e_reeval!==re)return false;
+    return true;
+  });
+  rows.sort((a,b)=>{
+    const f=v=>v==null?-1:v;
+    if(sort==='m_rate_d')return f(b.m_rate)-f(a.m_rate);
+    if(sort==='m_rate_a')return f(a.m_rate)-f(b.m_rate);
+    if(sort==='e_rate_d')return f(b.e_rate)-f(a.e_rate);
+    if(sort==='m_last_d')return(b.m_last||'').localeCompare(a.m_last||'');
+    return a.name.localeCompare(b.name);
+  });
+
+  document.getElementById('s-tbody').innerHTML=rows.map(d=>{
+    const s=getStaff(d.id);
+    const mr=d.m_rate,er=d.e_rate;
+    const md=daysSince(d.m_last),ed=daysSince(d.e_last);
+    const mBlank=md!=null&&md>=7,eBlank=ed!=null&&ed>=7;
+    const mBehind=mr!=null&&mr<avgM*0.5,eBehind=er!=null&&er<avgE*0.5;
+    const alerts=[];
+    if(d.m_reeval==='未')alerts.push('<span class="b b-ng" style="font-size:9px">数 再評価未</span>');
+    if(d.e_reeval==='未')alerts.push('<span class="b b-ng" style="font-size:9px">英 再評価未</span>');
+    if(mBehind)alerts.push('<span class="b b-warn" style="font-size:9px">数 遅れ</span>');
+    if(eBehind)alerts.push('<span class="b b-warn" style="font-size:9px">英 遅れ</span>');
+    if(mBlank)alerts.push('<span class="b b-ng" style="font-size:9px">数 ブランク</span>');
+    if(eBlank)alerts.push('<span class="b b-ng" style="font-size:9px">英 ブランク</span>');
+    return`<tr onclick="openPopup(${d.id})" style="cursor:pointer">
+      <td><span style="font-weight:700;color:var(--blue)">${d.name}</span>${alerts.length?'<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px">'+alerts.join('')+'</div>':''}</td>
+      <td><span style="font-weight:700;color:${rateCol(mr)}">${pct(mr)}</span>
+        <div class="pb" style="width:80px;margin-top:3px"><div class="pb-fill" style="width:${Math.min(mr!=null?mr/TARGET*100:0,100)}%;background:${rateCol(mr)}"></div><div class="pb-target" style="left:${Math.min(100,100)}%"></div></div></td>
+      <td>${mr!=null?(d.m_done??'–')+'<span style="color:var(--sub)">/'+(d.m_total??'–')+'</span>':'–'}</td>
+      <td>${n(d.m_ex)}</td><td>${mr!=null?pct(d.m_acc):'–'}</td>
+      <td>${d.m_week!=null?d.m_week:'–'}</td>
+      <td style="color:${mBlank?'var(--red)':''}">${d.m_last||'–'}${mBlank?`<br><span style="font-size:10px;color:var(--red)">${md}日前</span>`:''}</td>
+      <td><span class="b ${d.m_reeval==='済'?'b-ok':d.m_reeval==='未'?'b-ng':'b-gray'}">${d.m_reeval||'–'}</span></td>
+      <td><span style="font-weight:700;color:${rateCol(er)}">${pct(er)}</span>
+        <div class="pb" style="width:80px;margin-top:3px"><div class="pb-fill" style="width:${Math.min(er!=null?er/TARGET*100:0,100)}%;background:${rateCol(er)}"></div></div></td>
+      <td>${er!=null?(d.e_done??'–')+'<span style="color:var(--sub)">/'+(d.e_total??'–')+'</span>':'–'}</td>
+      <td>${n(d.e_ex)}</td><td>${er!=null?pct(d.e_acc):'–'}</td>
+      <td>${d.e_week!=null?d.e_week:'–'}</td>
+      <td style="color:${eBlank?'var(--red)':''}">${d.e_last||'–'}${eBlank?`<br><span style="font-size:10px;color:var(--red)">${ed}日前</span>`:''}</td>
+      <td><span class="b ${d.e_reeval==='済'?'b-ok':d.e_reeval==='未'?'b-ng':'b-gray'}">${d.e_reeval||'–'}</span></td>
+      <td>${forecastBadge(mr)}</td>
+      <td style="color:var(--sub)">${s.tanin||'–'}</td>
+      <td style="color:var(--sub)">${s.tanto||'–'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ========== TREND (週別推移) ==========
+function renderTrend(){
+  const data=getData();
+  const trMode=document.getElementById('tr-mode').value;
+  const trSubj=document.getElementById('tr-subj').value;
+  const trTarget=document.getElementById('tr-target');
+
+  // populate target select
+  if(trMode==='school'){
+    trTarget.style.display='none';
+  } else {
+    trTarget.style.display='';
+    const groups=buildGroups(trMode,data);
+    const keys=Object.keys(groups).sort();
+    const cur=trTarget.value;
+    trTarget.innerHTML=keys.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${k}</option>`).join('');
+  }
+
+  // 週ごとの演習数を集計
+  // 現在持っているのは m_week(6/22週の今週演習数) と m_ex(総演習数) のみ
+  // 前週分を推定: 総演習数 - 今週演習数 = 〜6/15までの累計 (複数週分)
+  // Week labels: [〜6/21, 6/22週]
+  // 各データポイント: [m_ex-m_week, m_week]
+  
+  function getWeekData(d){
+    const mW=d.m_week??0, eW=d.e_week??0;
+    const mEx=d.m_ex??0, eEx=d.e_ex??0;
+    const mPrev=Math.max(0,mEx-mW), ePrev=Math.max(0,eEx-eW);
+    if(trSubj==='m')return[mPrev,mW];
+    if(trSubj==='e')return[ePrev,eW];
+    return[mPrev+ePrev,mW+eW];
+  }
+
+  let datasets=[], chartLabels=['〜6/21累計','6/22週'];
+
+  const COLORS=['#2563eb','#0891b2','#16a34a','#d97706','#dc2626','#7c3aed','#db2777','#059669','#ea580c','#0284c7'];
+
+  if(trMode==='school'){
+    const totals=chartLabels.map((_,wi)=>{ const vs=data.map(d=>getWeekData(d)[wi]).filter(v=>v!=null); return vs.length?vs.reduce((a,b)=>a+b)/vs.length:0; });
+    datasets=[{label:'校舎平均',data:totals,borderColor:'#2563eb',backgroundColor:'#2563eb22',tension:.3,fill:true,pointRadius:5}];
+    document.getElementById('trend-title').textContent='週別 演習達成数推移 — 校舎全体平均';
+  } else {
+    const groups=buildGroups(trMode,data);
+    const sel=trTarget.value||(Object.keys(groups).sort()[0]||'');
+    if(groups[sel]){
+      const members=groups[sel];
+      if(trMode==='student'){
+        const d=members[0];
+        const vals=getWeekData(d);
+        datasets=[{label:d.name,data:vals,borderColor:'#2563eb',backgroundColor:'#2563eb22',tension:.3,fill:true,pointRadius:5}];
+        document.getElementById('trend-title').textContent=`週別 演習達成数推移 — ${d.name}`;
+      } else {
+        const avgs=chartLabels.map((_,wi)=>{const vs=members.map(d=>getWeekData(d)[wi]);return vs.reduce((a,b)=>a+b)/vs.length;});
+        datasets=[{label:sel,data:avgs,borderColor:'#2563eb',backgroundColor:'#2563eb22',tension:.3,fill:true,pointRadius:5}];
+        document.getElementById('trend-title').textContent=`週別 演習達成数推移 — ${sel}`;
+      }
+    }
+  }
+
+  destroyC('c-trend');
+  const ctx=document.getElementById('c-trend').getContext('2d');
+  charts['c-trend']=new Chart(ctx,{type:'line',data:{labels:chartLabels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:datasets.length>1,labels:{font:{size:10},boxWidth:12}},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.raw.toFixed(1)}`}}},
+      scales:{x:{ticks:{color:'#64748b'},grid:{color:'#f1f5f9'}},
+        y:{ticks:{color:'#64748b',font:{size:10}},grid:{color:'#f1f5f9'},beginAtZero:true,title:{display:true,text:'演習達成数（平均）',color:'#64748b',font:{size:10}}}}}});
+
+  // Trend table: 全員 or グループ別
+  const allGroups=buildGroups(trMode,data);
+  const thead=document.querySelector('#trend-table thead');
+  const tbody=document.querySelector('#trend-table tbody');
+  const subj=trSubj==='m'?'数学':trSubj==='e'?'英語':'数学+英語';
+  thead.innerHTML=`<tr><th>${trMode==='student'?'生徒名':trMode==='tanin'?'担任':'担当'}</th>${chartLabels.map(w=>`<th>${w}</th>`).join('')}<th>合計</th></tr>`;
+  const keys=Object.keys(allGroups).sort();
+  tbody.innerHTML=keys.map(k=>{
+    const g=allGroups[k];
+    const avgs=chartLabels.map((_,wi)=>{const vs=g.map(d=>getWeekData(d)[wi]);return vs.length?vs.reduce((a,b)=>a+b)/vs.length:0;});
+    const total=avgs.reduce((a,b)=>a+b,0);
+    const nm=trMode==='student'?g[0]?.name:k;
+    return`<tr><td style="font-weight:600">${nm}</td>${avgs.map(v=>`<td>${v.toFixed(1)}</td>`).join('')}<td style="font-weight:700">${total.toFixed(1)}</td></tr>`;
+  }).join('');
+}
+
+function buildGroups(trMode,data){
+  const groups={};
+  if(trMode==='school'){groups['全体']=data;}
+  else if(trMode==='student'){data.forEach(d=>{groups[d.name]=[d];});}
+  else{
+    data.forEach(d=>{
+      const s=getStaff(d.id);
+      const k=s[trMode]||'未登録';
+      if(!groups[k])groups[k]=[];
+      groups[k].push(d);
+    });
+  }
+  return groups;
+}
+
+// ========== ALERTS ==========
+function renderAlerts(){
+  const data=getData();
+  const avgM=avgArr(data.filter(d=>d.m_rate!=null),'m_rate')||0;
+  const avgE=avgArr(data.filter(d=>d.e_rate!=null),'e_rate')||0;
+
+  const mkItem=(d,cls,reason)=>{
+    const s=getStaff(d.id);
+    return`<div class="al-item ${cls}"><div class="al-dot ${cls}"></div><div><span class="al-name">${d.name}</span> <span class="al-reason">${reason}｜担任:${s.tanin||'–'}／担当:${s.tanto||'–'}</span></div></div>`;
+  };
+
+  const rmList=data.filter(d=>d.m_reeval==='未');
+  const reList=data.filter(d=>d.e_reeval==='未');
+  document.getElementById('cnt-rm').textContent=rmList.length;
+  document.getElementById('cnt-re').textContent=reList.length;
+  document.getElementById('list-rm').innerHTML=rmList.map(d=>mkItem(d,'red','数学 再評価テスト未受験')).join('')||'<div class="empty-msg">✓ 対象者なし</div>';
+  document.getElementById('list-re').innerHTML=reList.map(d=>mkItem(d,'red','英語 再評価テスト未受験')).join('')||'<div class="empty-msg">✓ 対象者なし</div>';
+
+  const slowList=data.filter(d=>{ const rs=[];if(d.m_rate!=null&&d.m_rate<avgM*0.5)rs.push(`数学${pct(d.m_rate)}`);if(d.e_rate!=null&&d.e_rate<avgE*0.5)rs.push(`英語${pct(d.e_rate)}`);d._sr=rs;return rs.length>0;});
+  const bmList=data.filter(d=>{const ds=daysSince(d.m_last);return ds!=null&&ds>=7;});
+  const beList=data.filter(d=>{const ds=daysSince(d.e_last);return ds!=null&&ds>=7;});
+  const farList=data.filter(d=>d.m_rate!=null&&d.m_rate<0.015);
+  document.getElementById('cnt-slow').textContent=slowList.length;
+  document.getElementById('cnt-bm').textContent=bmList.length;
+  document.getElementById('cnt-be').textContent=beList.length;
+  document.getElementById('cnt-far').textContent=farList.length;
+  document.getElementById('list-slow').innerHTML=slowList.map(d=>mkItem(d,'amber',`${d._sr.join('／')} が平均の半分以下`)).join('')||'<div class="empty-msg">✓ 対象者なし</div>';
+  document.getElementById('list-bm').innerHTML=bmList.map(d=>{const ds=daysSince(d.m_last);return mkItem(d,'red',`数学${ds}日ブランク（最終:${d.m_last}）`);}).join('')||'<div class="empty-msg">✓ 対象者なし</div>';
+  document.getElementById('list-be').innerHTML=beList.map(d=>{const ds=daysSince(d.e_last);return mkItem(d,'red',`英語${ds}日ブランク（最終:${d.e_last}）`);}).join('')||'<div class="empty-msg">✓ 対象者なし</div>';
+  document.getElementById('list-far').innerHTML=farList.sort((a,b)=>a.m_rate-b.m_rate).map(d=>mkItem(d,'red',`数学${pct(d.m_rate)} — 残り${Math.ceil((DEADLINE-TODAY)/86400000)}日で${((TARGET-d.m_rate)*100).toFixed(1)}%必要`)).join('')||'<div class="empty-msg">✓ 対象者なし</div>';
+
+  const totalReeval=new Set([...rmList,...reList].map(d=>d.id)).size;
+  const totalOther=new Set([...slowList,...bmList,...beList,...farList].map(d=>d.id)).size;
+  document.getElementById('tab-n-alert').textContent=totalReeval+totalOther;
+  document.getElementById('asb-n-reeval').textContent=totalReeval;
+  document.getElementById('asb-n-other').textContent=totalOther;
+}
+
+// ========== STAFF ==========
+function renderStaff(role){
+  const data=getData();
+  const cMId=`c-${role}-m`,cEId=`c-${role}-e`,tbId=`${role}-tbody`;
+  const groups={};
+  data.forEach(d=>{const s=getStaff(d.id);const p=s[role]||'未登録';if(!groups[p])groups[p]=[];groups[p].push(d);});
+  const stats=Object.keys(groups).sort().map(name=>{
+    const g=groups[name];
+    const mR=g.filter(d=>d.m_rate!=null).map(d=>d.m_rate),eR=g.filter(d=>d.e_rate!=null).map(d=>d.e_rate);
+    const avgM=mR.length?mR.reduce((a,b)=>a+b)/mR.length:null;
+    const avgE=eR.length?eR.reduce((a,b)=>a+b)/eR.length:null;
+    const rmD=g.filter(d=>d.m_reeval==='済').length,rmT=g.filter(d=>d.m_reeval!=null).length;
+    const reD=g.filter(d=>d.e_reeval==='済').length,reT=g.filter(d=>d.e_reeval!=null).length;
+    const wm=g.filter(d=>d.m_week!=null).map(d=>d.m_week),we=g.filter(d=>d.e_week!=null).map(d=>d.e_week);
+    return{name,count:g.length,avgM,avgE,rmD,rmT,reD,reT,
+      avgWm:wm.length?wm.reduce((a,b)=>a+b)/wm.length:null,
+      avgWe:we.length?we.reduce((a,b)=>a+b)/we.length:null};
+  });
+  stats.sort((a,b)=>(b.avgM||0)-(a.avgM||0));
+
+  const mkBar=(id,vals,names,color)=>{
+    destroyC(id);
+    const ctx=document.getElementById(id).getContext('2d');
+    charts[id]=new Chart(ctx,{type:'bar',
+      data:{labels:names,datasets:[{data:vals,backgroundColor:color+'44',borderColor:color,borderWidth:2,borderRadius:5},
+        {type:'line',data:new Array(names.length).fill(62),borderColor:'#d97706',borderWidth:2,borderDash:[5,3],pointRadius:0}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#64748b',font:{size:10},maxRotation:40},grid:{display:false}},
+        y:{ticks:{color:'#64748b',font:{size:10},callback:v=>v+'%'},grid:{color:'#f1f5f9'},max:70,beginAtZero:true}}}});
+  };
+  mkBar(cMId,stats.map(s=>s.avgM!=null?+(s.avgM*100).toFixed(1):0),stats.map(s=>s.name),'#2563eb');
+  mkBar(cEId,stats.map(s=>s.avgE!=null?+(s.avgE*100).toFixed(1):0),stats.map(s=>s.name),'#0891b2');
+
+  document.getElementById(tbId).innerHTML=stats.map((s,i)=>{
+    const rk=i<3?`<span class="rank r${i+1}">${i+1}</span>`:`<span class="rank rn">${i+1}</span>`;
+    return`<tr><td>${rk}</td><td style="font-weight:700">${s.name}</td><td>${s.count}名</td>
+      <td style="font-weight:700;color:${rateCol(s.avgM)}">${pct(s.avgM)}</td>
+      <td style="font-weight:700;color:${rateCol(s.avgE)}">${pct(s.avgE)}</td>
+      <td>${s.rmT?((s.rmD/s.rmT*100).toFixed(0))+'%('+s.rmD+'/'+s.rmT+')':'–'}</td>
+      <td>${s.reT?((s.reD/s.reT*100).toFixed(0))+'%('+s.reD+'/'+s.reT+')':'–'}</td>
+      <td>${s.avgWm!=null?s.avgWm.toFixed(1):'–'}</td>
+      <td>${s.avgWe!=null?s.avgWe.toFixed(1):'–'}</td></tr>`;
+  }).join('');
+}
+
+// ========== POPUP ==========
+function openPopup(id){
+  const data=getData();
+  const d=data.find(x=>x.id===id);if(!d)return;
+  const s=getStaff(d.id);
+  const avgM=avgArr(data.filter(x=>x.m_rate!=null),'m_rate')||0;
+  const avgE=avgArr(data.filter(x=>x.e_rate!=null),'e_rate')||0;
+  document.getElementById('pu-name').textContent=d.name;
+  document.getElementById('pu-meta').textContent=`${d.grade} ／ ${d.school} ／ 担任: ${s.tanin||'–'} ／ 担当: ${s.tanto||'–'}`;
+  document.getElementById('pu-kpis').innerHTML=`
+    <div class="popup-kpi"><div class="pk-label">数学 達成率</div><div class="pk-val" style="color:${rateCol(d.m_rate)}">${pct(d.m_rate)}</div></div>
+    <div class="popup-kpi"><div class="pk-label">英語 達成率</div><div class="pk-val" style="color:${rateCol(d.e_rate)}">${pct(d.e_rate)}</div></div>
+    <div class="popup-kpi"><div class="pk-label">数学 達成/総数</div><div class="pk-val">${d.m_done??'–'}/${d.m_total??'–'}</div></div>
+    <div class="popup-kpi"><div class="pk-label">英語 達成/総数</div><div class="pk-val">${d.e_done??'–'}/${d.e_total??'–'}</div></div>
+    <div class="popup-kpi"><div class="pk-label">数学 演習数</div><div class="pk-val">${n(d.m_ex)}</div></div>
+    <div class="popup-kpi"><div class="pk-label">英語 演習数</div><div class="pk-val">${n(d.e_ex)}</div></div>
+    <div class="popup-kpi"><div class="pk-label">数学 正答率</div><div class="pk-val">${d.m_rate!=null?pct(d.m_acc):'–'}</div></div>
+    <div class="popup-kpi"><div class="pk-label">英語 正答率</div><div class="pk-val">${d.e_rate!=null?pct(d.e_acc):'–'}</div></div>
+    <div class="popup-kpi"><div class="pk-label">数学 今週演習</div><div class="pk-val">${d.m_week??'–'}</div></div>
+    <div class="popup-kpi"><div class="pk-label">英語 今週演習</div><div class="pk-val">${d.e_week??'–'}</div></div>
+    <div class="popup-kpi"><div class="pk-label">数学 再評価</div><div><span class="b ${d.m_reeval==='済'?'b-ok':d.m_reeval==='未'?'b-ng':'b-gray'}">${d.m_reeval||'–'}</span></div></div>
+    <div class="popup-kpi"><div class="pk-label">英語 再評価</div><div><span class="b ${d.e_reeval==='済'?'b-ok':d.e_reeval==='未'?'b-ng':'b-gray'}">${d.e_reeval||'–'}</span></div></div>
+    <div class="popup-kpi"><div class="pk-label">数学 最終演習日</div><div class="pk-val" style="font-size:14px">${d.m_last||'–'}</div></div>
+    <div class="popup-kpi"><div class="pk-label">英語 最終演習日</div><div class="pk-val" style="font-size:14px">${d.e_last||'–'}</div></div>
+    <div class="popup-kpi" style="grid-column:span 2"><div class="pk-label">目標到達見込み（数学）</div><div style="margin-top:4px">${forecastBadge(d.m_rate)}</div></div>
+  `;
+  const als=[];
+  if(d.m_reeval==='未')als.push({c:'red',m:'数学 再評価テスト未受験'});
+  if(d.e_reeval==='未')als.push({c:'red',m:'英語 再評価テスト未受験'});
+  if(d.m_rate!=null&&d.m_rate<avgM*0.5)als.push({c:'amber',m:`数学達成率${pct(d.m_rate)}が平均の半分以下（平均${pct(avgM)}）`});
+  if(d.e_rate!=null&&d.e_rate<avgE*0.5)als.push({c:'amber',m:`英語達成率${pct(d.e_rate)}が平均の半分以下（平均${pct(avgE)}）`});
+  const md=daysSince(d.m_last),ed=daysSince(d.e_last);
+  if(md!=null&&md>=7)als.push({c:'red',m:`数学${md}日ブランク（最終:${d.m_last}）`});
+  if(ed!=null&&ed>=7)als.push({c:'red',m:`英語${ed}日ブランク（最終:${d.e_last}）`});
+  if(d.m_rate!=null&&d.m_rate<0.015)als.push({c:'red',m:`数学${pct(d.m_rate)} — 7/31目標62%到達には大幅なペースアップが必要`});
+  document.getElementById('pu-alerts').innerHTML=als.length
+    ?'<div style="font-size:11px;font-weight:700;color:var(--sub);margin-bottom:8px">⚠ アラート</div>'+als.map(a=>`<div class="al-item ${a.c}" style="margin-bottom:5px"><div class="al-dot ${a.c}"></div><span class="al-reason">${a.m}</span></div>`).join('')
+    :'<div class="empty-msg">✓ アラートなし</div>';
+  document.getElementById('overlay').classList.add('on');
+}
+function closePopup(){document.getElementById('overlay').classList.remove('on');}
+
+// ========== PRINT ==========
+function printPage(pageId){
+  const pages=document.querySelectorAll('.page');
+  pages.forEach(p=>p.classList.remove('on'));
+  document.getElementById(pageId).classList.add('on');
+  setTimeout(()=>window.print(),100);
+}
+
+// ========== CSV EXPORT ==========
+function exportCSV(tab){
+  const data=getData();
+  let rows=[],headers=[];
+  if(tab==='overview'||tab==='students'||tab==='rate'){
+    headers=['氏名','学年','高校','数学達成率','数達成数','数総数','数演習数','数正答率','数今週','数最終演習日','数再評価','英語達成率','英達成数','英総数','英演習数','英正答率','英今週','英最終演習日','英再評価','担任','担当'];
+    rows=data.map(d=>{const s=getStaff(d.id);return[d.name,d.grade,d.school,d.m_rate!=null?(d.m_rate*100).toFixed(1)+'%':'–',d.m_done??'–',d.m_total??'–',d.m_ex??'–',d.m_acc!=null?(d.m_acc*100).toFixed(1)+'%':'–',d.m_week??'–',d.m_last||'–',d.m_reeval||'–',d.e_rate!=null?(d.e_rate*100).toFixed(1)+'%':'–',d.e_done??'–',d.e_total??'–',d.e_ex??'–',d.e_acc!=null?(d.e_acc*100).toFixed(1)+'%':'–',d.e_week??'–',d.e_last||'–',d.e_reeval||'–',s.tanin||'–',s.tanto||'–'].join(',');});
+  } else if(tab==='trend'){
+    const trMode=document.getElementById('tr-mode').value;
+    const trSubj=document.getElementById('tr-subj').value;
+    const subj=trSubj==='m'?'数学':trSubj==='e'?'英語':'数学+英語';
+    headers=[trMode==='student'?'生徒名':trMode==='tanin'?'担任':'担当','〜6/21累計','6/22週','合計'];
+    const groups=buildGroups(trMode,data);
+    rows=Object.keys(groups).sort().map(k=>{
+      const g=groups[k];
+      const nm=trMode==='student'?g[0]?.name:k;
+      const avgs=[0,1].map(wi=>{
+        const vs=g.map(d=>{const mW=d.m_week??0,eW=d.e_week??0,mEx=d.m_ex??0,eEx=d.e_ex??0;if(trSubj==='m')return wi===0?Math.max(0,mEx-mW):mW;if(trSubj==='e')return wi===0?Math.max(0,eEx-eW):eW;return wi===0?Math.max(0,mEx-mW)+Math.max(0,eEx-eW):mW+eW;});
+        return vs.length?vs.reduce((a,b)=>a+b)/vs.length:0;
+      });
+      return[nm,...avgs.map(v=>v.toFixed(1)),(avgs.reduce((a,b)=>a+b,0)).toFixed(1)].join(',');
+    });
+  } else if(tab==='alerts'){
+    headers=['氏名','アラート種別','担任','担当'];
+    const avgM=avgArr(data.filter(d=>d.m_rate!=null),'m_rate')||0;
+    const avgE=avgArr(data.filter(d=>d.e_rate!=null),'e_rate')||0;
+    const als=[];
+    data.forEach(d=>{const s=getStaff(d.id);if(d.m_reeval==='未')als.push([d.name,'数学再評価未受験',s.tanin||'–',s.tanto||'–'].join(','));if(d.e_reeval==='未')als.push([d.name,'英語再評価未受験',s.tanin||'–',s.tanto||'–'].join(','));if(d.m_rate!=null&&d.m_rate<avgM*0.5)als.push([d.name,'数学演習遅れ(平均半分以下)',s.tanin||'–',s.tanto||'–'].join(','));if(d.e_rate!=null&&d.e_rate<avgE*0.5)als.push([d.name,'英語演習遅れ(平均半分以下)',s.tanin||'–',s.tanto||'–'].join(','));const md=daysSince(d.m_last),ed=daysSince(d.e_last);if(md!=null&&md>=7)als.push([d.name,`数学${md}日ブランク`,s.tanin||'–',s.tanto||'–'].join(','));if(ed!=null&&ed>=7)als.push([d.name,`英語${ed}日ブランク`,s.tanin||'–',s.tanto||'–'].join(','));if(d.m_rate!=null&&d.m_rate<0.015)als.push([d.name,'7/31目標62%大幅遅れ',s.tanin||'–',s.tanto||'–'].join(','));});
+    rows=als;
+  } else {
+    const role=tab;
+    const groups={};
+    data.forEach(d=>{const s=getStaff(d.id);const p=s[role]||'未登録';if(!groups[p])groups[p]=[];groups[p].push(d);});
+    headers=[role==='tanin'?'担任':'担当','担当人数','数学平均達成率','英語平均達成率','数学再評価%','英語再評価%','数今週平均','英今週平均'];
+    rows=Object.keys(groups).sort().map(k=>{
+      const g=groups[k];
+      const mR=g.filter(d=>d.m_rate!=null).map(d=>d.m_rate),eR=g.filter(d=>d.e_rate!=null).map(d=>d.e_rate);
+      const aM=mR.length?mR.reduce((a,b)=>a+b)/mR.length:null;
+      const aE=eR.length?eR.reduce((a,b)=>a+b)/eR.length:null;
+      const rmD=g.filter(d=>d.m_reeval==='済').length,rmT=g.filter(d=>d.m_reeval!=null).length;
+      const reD=g.filter(d=>d.e_reeval==='済').length,reT=g.filter(d=>d.e_reeval!=null).length;
+      const wm=g.filter(d=>d.m_week!=null).map(d=>d.m_week),we=g.filter(d=>d.e_week!=null).map(d=>d.e_week);
+      return[k,g.length,aM!=null?(aM*100).toFixed(1)+'%':'–',aE!=null?(aE*100).toFixed(1)+'%':'–',rmT?((rmD/rmT*100).toFixed(0))+'%':'–',reT?((reD/reT*100).toFixed(0))+'%':'–',wm.length?(wm.reduce((a,b)=>a+b)/wm.length).toFixed(1):'–',we.length?(we.reduce((a,b)=>a+b)/we.length).toFixed(1):'–'].join(',');
+    });
+  }
+  const csv='\uFEFF'+[headers.join(','),...rows].join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=`演習進捗_${tab}_${mode}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ========== INIT ==========
+renderOverview();
+renderAlerts();
+renderRate();
+</script>
+</body>
+</html>
